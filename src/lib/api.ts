@@ -39,8 +39,48 @@ async function ragFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+// Gateway admin (Fase 4) — pakai admin token yang sama (auth.token).
+async function gwFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${GATEWAY}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${auth.token}`,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: { message?: string } }).error?.message ?? `HTTP ${res.status}`);
+  return data as T;
+}
+
+export type Tier = 'free' | 'starter' | 'pro' | 'ultimate';
+export interface ApiKey {
+  key: string;
+  name: string;
+  tier: Tier;
+  active: boolean;
+  createdAt: string;
+  usage: { used: number; limit: number; remaining: number; windowType: string };
+}
+export interface Order {
+  orderId: string;
+  apiKey: string;
+  tier: Tier;
+  amount: number;
+  status: 'pending' | 'paid' | 'failed';
+  createdAt: string;
+}
+export interface TierInfo {
+  tier: Tier;
+  priceIdr: number;
+  tokenLimit: number;
+  window: string;
+}
+
 export const api = {
   ragUrl: RAG,
+  gatewayUrl: GATEWAY,
 
   // ── Tenant (toko) ──
   listTenants: () => ragFetch<{ data: Tenant[] }>('/admin/tenants').then((r) => r.data),
@@ -87,4 +127,23 @@ export const api = {
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((j: { data?: { id: string; tier: string; providers: string[] }[] }) => j.data ?? [])
       .catch(() => []),
+
+  // ── Super Admin: API keys & billing (Gateway Fase 4) ──
+  listTiers: () => gwFetch<{ data: TierInfo[] }>('/admin/tiers').then((r) => r.data),
+  listKeys: () => gwFetch<{ data: ApiKey[] }>('/admin/keys').then((r) => r.data),
+  createKey: (name: string, tier: Tier) =>
+    gwFetch<ApiKey>('/admin/keys', { method: 'POST', body: JSON.stringify({ name, tier }) }),
+  setKeyTier: (key: string, tier: Tier) =>
+    gwFetch<ApiKey>(`/admin/keys/${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tier }),
+    }),
+  revokeKey: (key: string) =>
+    gwFetch<{ revoked: string }>(`/admin/keys/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+  listOrders: () => gwFetch<{ data: Order[] }>('/admin/orders').then((r) => r.data),
+  approveOrder: (orderId: string) =>
+    gwFetch<{ orderId: string; upgradedTo: Tier }>(
+      `/admin/orders/${encodeURIComponent(orderId)}/approve`,
+      { method: 'POST' },
+    ),
 };

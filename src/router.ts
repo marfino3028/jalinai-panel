@@ -3,6 +3,7 @@ import { auth } from './lib/auth.js';
 import Login from './views/Login.vue';
 import Dashboard from './views/Dashboard.vue';
 import TokoDetail from './views/TokoDetail.vue';
+import SystemAdmin from './views/SystemAdmin.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,6 +11,7 @@ const router = createRouter({
     { path: '/login', name: 'login', component: Login },
     { path: '/', name: 'dashboard', component: Dashboard, meta: { auth: true } },
     { path: '/toko/:id', name: 'toko', component: TokoDetail, meta: { auth: true } },
+    { path: '/system', name: 'system', component: SystemAdmin, meta: { auth: true } },
   ],
 });
 
